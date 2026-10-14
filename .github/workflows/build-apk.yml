@@ -28,10 +28,10 @@ jobs:
       - name: 📥 تنزيل كود المستودع (Checkout)
         uses: actions/checkout@v4
 
-      - name: ⚙️ إعداد بيئة Node.js v20
+      - name: ⚙️ إعداد بيئة Node.js v22 (LTS)
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: ☕ إعداد بيئة Java 17 (JDK)
         uses: actions/setup-java@v4
