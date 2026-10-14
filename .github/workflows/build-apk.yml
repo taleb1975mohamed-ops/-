@@ -33,11 +33,11 @@ jobs:
         with:
           node-version: 22
 
-      - name: ☕ إعداد بيئة Java 17 (JDK)
+      - name: ☕ إعداد بيئة Java 21 (JDK)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: 🤖 قبول تراخيص Android SDK
         run: |

@@ -85,7 +85,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
       - run: |
           mkdir -p $HOME/.android
           touch $HOME/.android/repositories.cfg
