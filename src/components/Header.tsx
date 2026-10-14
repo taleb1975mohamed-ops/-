@@ -23,6 +23,7 @@ interface HeaderProps {
   onImportJSON: (data: string) => void;
   onResetMonth: () => void;
   onOpenApkModal: () => void;
+  onInstallApp: () => void;
   savedIndicator: boolean;
 }
 
@@ -36,6 +37,7 @@ export const Header: React.FC<HeaderProps> = ({
   onImportJSON,
   onResetMonth,
   onOpenApkModal,
+  onInstallApp,
   savedIndicator
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -191,12 +193,21 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           <button
+            onClick={onInstallApp}
+            title="تسطيب التطبيق على هاتفك أو كمبيوترك فوراً"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-sm hover:shadow-emerald-600/30 active:scale-95 transition-all cursor-pointer ring-2 ring-emerald-400/30"
+          >
+            <Download className="w-4 h-4 text-emerald-100 animate-pulse" />
+            <span>تسطيب التطبيق</span>
+          </button>
+
+          <button
             onClick={onOpenApkModal}
             title="استخراج وتحميل تطبيق أندرويد (APK)"
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white shadow-xs hover:shadow-sky-500/20 active:scale-95 transition-all"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all cursor-pointer"
           >
-            <Smartphone className="w-4 h-4 text-sky-200" />
-            <span>تطبيق أندرويد (APK)</span>
+            <Smartphone className="w-4 h-4 text-sky-600" />
+            <span className="hidden sm:inline">حزمة</span> APK
           </button>
         </div>
 

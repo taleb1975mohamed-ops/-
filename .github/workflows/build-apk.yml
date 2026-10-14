@@ -20,6 +20,10 @@ jobs:
     name: بناء وتجهيز ملف الـ APK
     runs-on: ubuntu-latest
 
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+
     steps:
       - name: 📥 تنزيل كود المستودع (Checkout)
         uses: actions/checkout@v4
@@ -35,8 +39,13 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 🤖 إعداد بيئة Android SDK
-        uses: android-actions/setup-android@v3
+      - name: 🤖 قبول تراخيص Android SDK
+        run: |
+          mkdir -p $HOME/.android
+          touch $HOME/.android/repositories.cfg
+          if [ -d "$ANDROID_HOME/cmdline-tools/latest/bin" ]; then
+            yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          fi
 
       - name: 📦 تثبيت حزم المشروع (Install Dependencies)
         run: |
@@ -48,7 +57,7 @@ jobs:
         env:
           CI: false
 
-      - name: 🔄 تهيئة منصة أندرويد عبر Capacitor
+      - name: 🔄 تهيئة وإعداد منصة أندرويد عبر Capacitor
         run: |
           if [ ! -d "android" ]; then
             echo "إضافة منصة أندرويد لأول مرة..."

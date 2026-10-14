@@ -33,7 +33,9 @@ import { SummarySection } from './components/SummarySection';
 import { ConfirmModal } from './components/ConfirmModal';
 import { AddItemModal } from './components/AddItemModal';
 import { ApkDownloadModal } from './components/ApkDownloadModal';
+import { InstallBanner } from './components/InstallBanner';
 import { Toast } from './components/Toast';
+import { usePWAInstall } from './utils/usePWAInstall';
 
 const SECTIONS_ORDER: SectionType[] = [
   'income',
@@ -74,6 +76,19 @@ export default function App() {
   });
 
   const [isApkModalOpen, setIsApkModalOpen] = useState(false);
+  const { isInstallable, isInstalled, install } = usePWAInstall();
+
+  const handleInstallApp = async () => {
+    if (isInstallable) {
+      const success = await install();
+      if (success) {
+        showToast('تم تسطيب وتثبيت التطبيق بنجاح!');
+        return;
+      }
+    }
+    // Open install guide modal with direct link
+    setIsApkModalOpen(true);
+  };
 
   // Persist whenever data updates
   useEffect(() => {
@@ -280,6 +295,13 @@ export default function App() {
         <Toast message={toastMessage} onClose={() => setToastMessage(null)} />
       )}
 
+      {/* PWA Direct Install Top Banner */}
+      <InstallBanner
+        onInstallClick={handleInstallApp}
+        isInstallable={isInstallable}
+        isInstalled={isInstalled}
+      />
+
       {/* Top Header */}
       <Header
         totalIncome={totalIncome}
@@ -297,6 +319,7 @@ export default function App() {
         onImportJSON={handleImportJSON}
         onResetMonth={handleResetMonth}
         onOpenApkModal={() => setIsApkModalOpen(true)}
+        onInstallApp={handleInstallApp}
         savedIndicator={savedIndicator}
       />
 
@@ -441,10 +464,17 @@ export default function App() {
           <p>© {new Date().getFullYear()} النظام المحاسبي وإدارة المصاريف - محمد طالب</p>
           <div className="flex items-center gap-4 text-slate-400">
             <button
+              onClick={handleInstallApp}
+              className="text-emerald-700 hover:text-emerald-900 font-bold hover:underline transition-colors cursor-pointer inline-flex items-center gap-1"
+            >
+              📥 تسطيب التطبيق مباشرة
+            </button>
+            <span>·</span>
+            <button
               onClick={() => setIsApkModalOpen(true)}
               className="text-sky-600 hover:text-sky-800 font-bold hover:underline transition-colors cursor-pointer"
             >
-              📱 استخراج تطبيق أندرويد (APK)
+              📱 استخراج حزمة أندرويد (APK)
             </button>
             <span>·</span>
             <span>العملة: درهم مغربي (MAD)</span>
@@ -471,10 +501,12 @@ export default function App() {
         onClose={() => setAddCatalogModalState(prev => ({ ...prev, isOpen: false }))}
       />
 
-      {/* Android APK Download Guide Modal */}
+      {/* Android APK & PWA Direct Install Guide Modal */}
       <ApkDownloadModal
         isOpen={isApkModalOpen}
         onClose={() => setIsApkModalOpen(false)}
+        isInstallable={isInstallable}
+        onNativeInstall={install}
       />
     </div>
   );

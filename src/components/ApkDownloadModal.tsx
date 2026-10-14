@@ -9,30 +9,50 @@ import {
   ExternalLink, 
   X, 
   Sparkles, 
+  Monitor, 
   Layers, 
   ArrowRight,
   ShieldCheck,
-  FileCode,
-  HelpCircle
+  AlertCircle,
+  HelpCircle,
+  Share2,
+  PlusSquare
 } from 'lucide-react';
 
 interface ApkDownloadModalProps {
   isOpen: boolean;
   onClose: () => void;
+  isInstallable?: boolean;
+  onNativeInstall?: () => Promise<boolean>;
 }
 
-export const ApkDownloadModal: React.FC<ApkDownloadModalProps> = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'github' | 'instant'>('github');
-  const [copiedText, setCopiedText] = useState(false);
+export const ApkDownloadModal: React.FC<ApkDownloadModalProps> = ({ 
+  isOpen, 
+  onClose,
+  isInstallable = false,
+  onNativeInstall
+}) => {
+  const [activeTab, setActiveTab] = useState<'instant' | 'github'>('instant');
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedWorkflow, setCopiedWorkflow] = useState(false);
 
   if (!isOpen) return null;
 
+  // The actual live application URL for direct full-screen opening & installing
+  const appUrl = window.location.href.split('?')[0];
+
+  const handleCopyAppUrl = () => {
+    navigator.clipboard.writeText(appUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
+
   const workflowPath = '.github/workflows/build-apk.yml';
 
-  const handleCopyPath = () => {
+  const handleCopyWorkflow = () => {
     navigator.clipboard.writeText(workflowPath);
-    setCopiedText(true);
-    setTimeout(() => setCopiedText(false), 2000);
+    setCopiedWorkflow(true);
+    setTimeout(() => setCopiedWorkflow(false), 2000);
   };
 
   const handleDownloadWorkflowFile = () => {
@@ -66,7 +86,12 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      - run: |
+          mkdir -p $HOME/.android
+          touch $HOME/.android/repositories.cfg
+          if [ -d "$ANDROID_HOME/cmdline-tools/latest/bin" ]; then
+            yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          fi
       - run: npm install --legacy-peer-deps
       - run: npm run build
         env:
@@ -99,6 +124,15 @@ jobs:
     URL.revokeObjectURL(url);
   };
 
+  const handleDirectInstallClick = async () => {
+    if (onNativeInstall) {
+      const installed = await onNativeInstall();
+      if (installed) {
+        onClose();
+      }
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
       <div 
@@ -107,27 +141,27 @@ jobs:
         aria-modal="true"
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-sky-700 via-sky-600 to-sky-500 text-white p-5 sm:p-6 flex items-start justify-between relative overflow-hidden">
+        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-700 text-white p-5 sm:p-6 flex items-start justify-between relative overflow-hidden">
           <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-white/10 rounded-full blur-xl pointer-events-none" />
           
           <div className="flex items-center gap-3.5 relative z-10">
             <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-inner border border-white/30 shrink-0">
-              <Smartphone className="w-6 h-6 text-white" />
+              <Download className="w-6 h-6 text-white animate-pulse" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-lg sm:text-xl font-black">تحميل التطبيق لهاتفك الأندرويد</h3>
-                <span className="bg-white/20 text-xs px-2 py-0.5 rounded-full font-bold">APK & PWA</span>
+                <h3 className="text-lg sm:text-xl font-black">تسطيب التطبيق على جهازك</h3>
+                <span className="bg-white/20 text-xs px-2.5 py-0.5 rounded-full font-bold">تثبيت فوري</span>
               </div>
-              <p className="text-xs text-sky-100 mt-1">
-                تطبيق النظام المحاسبي - محمد طالب (جاهز ومعد للاستخراج المباشر)
+              <p className="text-xs text-emerald-100 mt-1">
+                النظام المحاسبي - محمد طالب (يعمل كتطبيق هاتف أو كمبيوتر مستقل)
               </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="text-white/80 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors shrink-0"
+            className="text-white/80 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors shrink-0 cursor-pointer"
             title="إغلاق"
           >
             <X className="w-5 h-5" />
@@ -137,167 +171,212 @@ jobs:
         {/* Navigation Tabs */}
         <div className="flex border-b border-slate-100 bg-slate-50/70 p-1.5 gap-1.5">
           <button
-            onClick={() => setActiveTab('github')}
-            className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-              activeTab === 'github'
-                ? 'bg-white text-sky-700 shadow-xs border border-slate-200/60'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Github className="w-4 h-4 text-slate-800" />
-            <span>استخراج ملف APK عبر GitHub Actions</span>
-          </button>
-
-          <button
             onClick={() => setActiveTab('instant')}
-            className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
               activeTab === 'instant'
                 ? 'bg-white text-emerald-700 shadow-xs border border-slate-200/60'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Sparkles className="w-4 h-4 text-emerald-600" />
-            <span>تثبيت فوري بدون تحميل APK (PWA)</span>
+            <span>تسطيب مباشر الآن (هاتف أو كمبيوتر)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('github')}
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'github'
+                ? 'bg-white text-sky-700 shadow-xs border border-slate-200/60'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Smartphone className="w-4 h-4 text-sky-600" />
+            <span>تحميل ملف APK عبر GitHub</span>
           </button>
         </div>
 
         {/* Tab Content */}
         <div className="p-5 sm:p-6 max-h-[70vh] overflow-y-auto space-y-5">
-          {activeTab === 'github' ? (
+          {activeTab === 'instant' ? (
+            <div className="space-y-4">
+              
+              {/* Native Prompt Ready Trigger if available */}
+              {isInstallable && (
+                <div className="p-4 bg-emerald-500 text-white rounded-2xl shadow-md flex items-center justify-between gap-3 animate-bounce">
+                  <div>
+                    <h4 className="font-black text-sm">المتصفح جاهز للتسطيب المباشر!</h4>
+                    <p className="text-xs text-emerald-100">اضغط الزر لتثبيت التطبيق على جهازك الآن</p>
+                  </div>
+                  <button
+                    onClick={handleDirectInstallClick}
+                    className="px-4 py-2 bg-white text-emerald-800 font-bold text-xs rounded-xl shadow-xs hover:bg-emerald-50 active:scale-95 transition-all cursor-pointer"
+                  >
+                    تسطيب التطبيق الآن
+                  </button>
+                </div>
+              )}
+
+              {/* Notice why the browser icon didn't show in the preview */}
+              <div className="p-4 bg-amber-50/90 border border-amber-200/80 rounded-2xl flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-950 leading-relaxed">
+                  <p className="font-bold text-amber-900 mb-1">لماذا لم تظهر لك أيقونة التسطيب في المتصفح تلقائياً؟</p>
+                  متصفحات الإنترنت (مثل Google Chrome) <strong>تحظر إظهار أيقونة التثبيت التلقائية داخل نوافذ المعاينة الداخلية (iFrames)</strong> لأسباب أمنية.
+                  <br />
+                  بمجرد <strong>فتح الرابط المباشر في نافذة مستقلة</strong> أو في متصفح هاتفك، ستظهر لك أيقونة التثبيت فوراً!
+                </div>
+              </div>
+
+              {/* Direct Link Action Box */}
+              <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
+                <h4 className="text-xs font-bold text-slate-700">رابط التطبيق المباشر للتسطيب:</h4>
+                <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 text-xs font-mono text-slate-600 overflow-x-auto">
+                  <span className="truncate flex-1 select-all">{appUrl}</span>
+                </div>
+                
+                <div className="flex items-center gap-2 flex-wrap">
+                  <a
+                    href={appUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>فتح التطبيق في نافذة مستقلة للتسطيب فوراً</span>
+                  </a>
+
+                  <button
+                    onClick={handleCopyAppUrl}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
+                  >
+                    {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-500" />}
+                    <span>{copiedLink ? 'تم نسخ الرابط بنجاح!' : 'نسخ الرابط لفتحه في الهاتف'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Step by Step Visual Guide */}
+              <div className="space-y-3 pt-1">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  أين تجد أيقونة التسطيب حسب جهازك:
+                </h4>
+
+                {/* Android Chrome */}
+                <div className="p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-emerald-300 transition-colors flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-emerald-100/80 text-emerald-800 shrink-0">
+                    <Smartphone className="w-5 h-5" />
+                  </div>
+                  <div className="text-xs space-y-1">
+                    <p className="font-bold text-slate-900">على هاتف أندرويد (متصفح Chrome):</p>
+                    <p className="text-slate-600 leading-normal">
+                      1. افتح رابط التطبيق في متصفح Chrome على الهاتف.
+                      <br />
+                      2. اضغط على زر النقاط الثلاث <strong className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold">⋮</strong> أعلى زاوية المتصفح.
+                      <br />
+                      3. اختر <strong className="text-emerald-700 font-bold">"تثبيت التطبيق" (Install app)</strong> أو <strong className="text-emerald-700 font-bold">"إضافة إلى الشاشة الرئيسية"</strong>.
+                      <br />
+                      4. سيظهر تطبيق <strong>النظام المحاسبي</strong> مباشرة كأيقونة تطبيق كاملة على شاشتك.
+                    </p>
+                  </div>
+                </div>
+
+                {/* PC Chrome / Edge */}
+                <div className="p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-emerald-300 transition-colors flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-sky-100/80 text-sky-800 shrink-0">
+                    <Monitor className="w-5 h-5" />
+                  </div>
+                  <div className="text-xs space-y-1">
+                    <p className="font-bold text-slate-900">على الكمبيوتر أو اللابتوب (متصفح Chrome أو Edge):</p>
+                    <p className="text-slate-600 leading-normal">
+                      1. افتح الرابط في نافذة جديدة.
+                      <br />
+                      2. في شريط العنوان أعلى المتصفح (جهة اليسار أو اليمين)، ستلاحظ ظهور أيقونة كمبيوتر صغيرة أو سهم تنزيل <strong className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold">⊕</strong> مكتوب عليها <em>"تثبيت التطبيق"</em>.
+                      <br />
+                      3. اضغط عليها ثم اضغط <strong>"تثبيت" (Install)</strong>، وسيتم إنشاء اختصار له على سطح المكتب كبرنامج مستقل!
+                    </p>
+                  </div>
+                </div>
+
+                {/* iPhone / Safari */}
+                <div className="p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-emerald-300 transition-colors flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-slate-100 text-slate-800 shrink-0">
+                    <Share2 className="w-5 h-5" />
+                  </div>
+                  <div className="text-xs space-y-1">
+                    <p className="font-bold text-slate-900">على آيفون أو آيباد (متصفح Safari):</p>
+                    <p className="text-slate-600 leading-normal">
+                      اضغط على زر المشاركة <strong className="text-sky-700 font-bold">[↑]</strong> أسفل المتصفح، ثم مرر واختر <strong className="font-bold text-slate-800">"إضافة إلى الصفحة الرئيسية" (Add to Home Screen)</strong>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          ) : (
+            /* GitHub APK Tab */
             <div className="space-y-4">
               <div className="p-3.5 bg-sky-50/70 border border-sky-100 rounded-2xl flex items-start gap-3">
                 <CheckCircle2 className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
                 <div className="text-xs text-sky-900 leading-relaxed">
-                  <p className="font-bold mb-1">تم إعداد كل شيء بنجاح في مشروعك!</p>
-                  قمت بإنشاء ملف <code className="bg-sky-100/80 px-1.5 py-0.5 rounded font-mono text-sky-950">.github/workflows/build-apk.yml</code> وتهيئة محرك <strong className="font-bold">Capacitor Android</strong> ليقوم خادم GitHub السحابي ببناء ملف الـ <strong className="font-bold">APK</strong> تلقائياً دون الحاجة لتثبيت برامج ثقيلة مثل Android Studio على جهازك.
+                  <p className="font-bold mb-1">استخراج ملف حزمة أندرويد (APK) عبر GitHub:</p>
+                  تم إعداد وتصحيح ملف <code className="bg-sky-100/80 px-1.5 py-0.5 rounded font-mono text-sky-950">.github/workflows/build-apk.yml</code> بالكامل بدون أخطاء التبعيات.
                 </div>
               </div>
 
-              {/* Step by Step Guide */}
               <div className="space-y-3">
                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  خطوات تحميل ملف الـ APK من مستودعك على GitHub:
+                  خطوات استخراج ملف الـ APK:
                 </h4>
 
-                {/* Step 1 */}
-                <div className="p-3.5 rounded-2xl border border-slate-100 bg-white hover:border-sky-200 transition-colors flex items-start gap-3">
+                <div className="p-3.5 rounded-2xl border border-slate-100 bg-white flex items-start gap-3">
                   <span className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 font-black text-xs flex items-center justify-center shrink-0">
                     1
                   </span>
-                  <div className="text-xs space-y-1">
-                    <p className="font-bold text-slate-800">ادخل إلى مستودع المشروع على موقع GitHub</p>
-                    <p className="text-slate-500 leading-normal">
-                      تأكد من رفع التغييرات إلى المستودع (Commit & Push)، أو قم بفتح صفحة الـ Repository الخاصة بك.
-                    </p>
+                  <div className="text-xs">
+                    <p className="font-bold text-slate-800">ادخل إلى مستودعك على GitHub</p>
+                    <p className="text-slate-500 mt-0.5">افتح مستودع الكود بعد مزامنة التغييرات.</p>
                   </div>
                 </div>
 
-                {/* Step 2 */}
-                <div className="p-3.5 rounded-2xl border border-slate-100 bg-white hover:border-sky-200 transition-colors flex items-start gap-3">
+                <div className="p-3.5 rounded-2xl border border-slate-100 bg-white flex items-start gap-3">
                   <span className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 font-black text-xs flex items-center justify-center shrink-0">
                     2
                   </span>
-                  <div className="text-xs space-y-1">
-                    <p className="font-bold text-slate-800">اضغط على تبويب Actions في الأعلى</p>
-                    <p className="text-slate-500 leading-normal">
-                      في الشريط العلوي للمستودع، انقر على <strong className="text-slate-700">Actions</strong>، وستجد خط العمل باسم <strong className="text-sky-700">Build Android APK (استخراج تطبيق أندرويد)</strong>.
-                    </p>
+                  <div className="text-xs">
+                    <p className="font-bold text-slate-800">اضغط على تبويب Actions</p>
+                    <p className="text-slate-500 mt-0.5">اختر خط العمل <strong className="text-sky-700">Build Android APK</strong> ثم اضغط الزر الأخضر <strong className="text-slate-700">Run workflow</strong>.</p>
                   </div>
                 </div>
 
-                {/* Step 3 */}
-                <div className="p-3.5 rounded-2xl border border-slate-100 bg-white hover:border-sky-200 transition-colors flex items-start gap-3">
-                  <span className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 font-black text-xs flex items-center justify-center shrink-0">
-                    3
-                  </span>
-                  <div className="text-xs space-y-1">
-                    <p className="font-bold text-slate-800">اضغط زر تشغيل البناء (Run workflow)</p>
-                    <p className="text-slate-500 leading-normal">
-                      اضغط على زر <strong className="text-slate-700">Run workflow</strong> الأخضر على يمين الشاشة، وسيقوم GitHub فوراً بتشغيل بيئة أندرويد وتجميع التطبيق خلال دقيقتين تقريباً.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Step 4 */}
                 <div className="p-3.5 rounded-2xl border border-emerald-100 bg-emerald-50/40 flex items-start gap-3">
                   <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-black text-xs flex items-center justify-center shrink-0">
-                    4
+                    3
                   </span>
-                  <div className="text-xs space-y-1">
-                    <p className="font-bold text-emerald-900">تحميل ملف MohamedTaleb-Accounting-APK</p>
-                    <p className="text-emerald-800 leading-normal">
-                      بعد انتهاء البناء (علامة صح خضراء ✓)، اضغط على التشغيل، وانزل لقسم <strong className="font-bold">Artifacts</strong> في الأسفل واضغط على <strong className="font-bold">MohamedTaleb-Accounting-APK</strong> لتحميل الملف وتثبيته على هاتفك فوراً!
+                  <div className="text-xs">
+                    <p className="font-bold text-emerald-900">تنزيل ملف MohamedTaleb-Accounting-APK</p>
+                    <p className="text-emerald-800 mt-0.5">
+                      بعد انتهاء البناء بدقيقتين، ستجد الملف في أسفل الصفحة في قسم <strong className="font-bold">Artifacts</strong> جاهزاً للتحميل والتثبيت.
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Helper Tools */}
               <div className="pt-2 flex flex-wrap gap-2.5">
                 <button
-                  onClick={handleCopyPath}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                  onClick={handleCopyWorkflow}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
                 >
-                  {copiedText ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-500" />}
-                  <span>{copiedText ? 'تم نسخ مسار الملف' : 'نسخ مسار الـ Workflow'}</span>
+                  {copiedWorkflow ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-500" />}
+                  <span>{copiedWorkflow ? 'تم نسخ مسار الملف' : 'نسخ مسار الـ Workflow'}</span>
                 </button>
 
                 <button
                   onClick={handleDownloadWorkflowFile}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 transition-colors cursor-pointer"
                 >
                   <Download className="w-4 h-4 text-sky-600" />
-                  <span>تنزيل ملف build-apk.yml المباشر</span>
+                  <span>تنزيل ملف build-apk.yml المحدث</span>
                 </button>
-              </div>
-            </div>
-          ) : (
-            /* Instant PWA Guide */
-            <div className="space-y-4">
-              <div className="p-4 bg-emerald-50/70 border border-emerald-100 rounded-2xl flex items-start gap-3">
-                <Sparkles className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div className="text-xs text-emerald-950 leading-relaxed">
-                  <p className="font-bold mb-1">طريقة فورية ومريحة جداً (بدون انتظار البناء)!</p>
-                  التطبيق مجهز بتقنية <strong className="font-bold">Progressive Web App (PWA)</strong>، مما يعني أنه يمكنك تثبيته على شاشة هاتفك الرئيسية الآن مباشرة من متصفح جوجل كروم بنقرة واحدة، وسيعمل كتطبيق هاتف مستقل دون الحاجة لملف APK!
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  طريقة التثبيت المباشر على هاتف أندرويد:
-                </h4>
-
-                <div className="p-3.5 rounded-2xl border border-slate-100 bg-white flex items-start gap-3">
-                  <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 font-black text-xs flex items-center justify-center shrink-0">
-                    1
-                  </span>
-                  <div className="text-xs">
-                    <p className="font-bold text-slate-800">افتح هذا الموقع في متصفح Google Chrome على هاتفك</p>
-                    <p className="text-slate-500 mt-0.5">افتح رابط التطبيق الحالي مباشرة من متصفح الهاتف.</p>
-                  </div>
-                </div>
-
-                <div className="p-3.5 rounded-2xl border border-slate-100 bg-white flex items-start gap-3">
-                  <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 font-black text-xs flex items-center justify-center shrink-0">
-                    2
-                  </span>
-                  <div className="text-xs">
-                    <p className="font-bold text-slate-800">اضغط على زر النقاط الثلاث (⋮) أعلى يمين المتصفح</p>
-                    <p className="text-slate-500 mt-0.5">ستفتح لك قائمة خيارات المتصفح.</p>
-                  </div>
-                </div>
-
-                <div className="p-3.5 rounded-2xl border border-emerald-100 bg-emerald-50/40 flex items-start gap-3">
-                  <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-black text-xs flex items-center justify-center shrink-0">
-                    3
-                  </span>
-                  <div className="text-xs">
-                    <p className="font-bold text-emerald-900">اختر "تثبيت التطبيق" أو "إضافة إلى الشاشة الرئيسية"</p>
-                    <p className="text-emerald-800 mt-0.5">
-                      سيظهر لك خيار باسم <strong className="font-bold">"تثبيت التطبيق" (Install App)</strong> أو <strong className="font-bold">"إضافة إلى الشاشة الرئيسية"</strong>. اضغط عليه، وسيظهر تطبيق النظام المحاسبي فوراً بأيقونته الرسمية على شاشة هاتفك مع سائر التطبيقات!
-                    </p>
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -307,14 +386,14 @@ jobs:
         <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>نظام محاسبي آمن 100% ويحفظ بياناتك محلياً</span>
+            <span>نظام محاسبي سريع ويحفظ بياناتك محلياً بشكل آمن</span>
           </div>
 
           <button
             onClick={onClose}
-            className="px-5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-900 text-white transition-colors"
+            className="px-5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-900 text-white transition-colors cursor-pointer"
           >
-            حسناً، فهمت
+            إغلاق
           </button>
         </div>
       </div>
