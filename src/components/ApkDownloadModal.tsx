@@ -62,14 +62,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
       - uses: android-actions/setup-android@v3
-      - run: npm install
+      - run: npm install --legacy-peer-deps
       - run: npm run build
+        env:
+          CI: false
       - run: |
           if [ ! -d "android" ]; then
             npx cap add android

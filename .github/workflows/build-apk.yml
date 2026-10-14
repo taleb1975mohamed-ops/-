@@ -28,7 +28,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: ☕ إعداد بيئة Java 17 (JDK)
         uses: actions/setup-java@v4
@@ -36,18 +35,20 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 🤖 إعداد حزمة تطوير أندرويد (Android SDK)
+      - name: 🤖 إعداد بيئة Android SDK
         uses: android-actions/setup-android@v3
 
       - name: 📦 تثبيت حزم المشروع (Install Dependencies)
         run: |
-          npm ci || npm install
+          npm install --legacy-peer-deps
 
       - name: 🏗️ بناء تطبيق الويب (Build Web Assets)
         run: |
           npm run build
+        env:
+          CI: false
 
-      - name: 🔄 تهيئة وإعداد منصة أندرويد عبر Capacitor
+      - name: 🔄 تهيئة منصة أندرويد عبر Capacitor
         run: |
           if [ ! -d "android" ]; then
             echo "إضافة منصة أندرويد لأول مرة..."
@@ -68,17 +69,13 @@ jobs:
       - name: 📂 نقل وتجهيز ملف الـ APK النهائي
         run: |
           mkdir -p output-apk
-          APK_PATH=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -n 1)
-          if [ -z "$APK_PATH" ]; then
-            APK_PATH=$(find android/ -name "*.apk" | head -n 1)
-          fi
-          
-          if [ -n "$APK_PATH" ]; then
-            echo "تم العثور على ملف APK في: $APK_PATH"
-            cp "$APK_PATH" output-apk/MohamedTaleb-Accounting.apk
-            ls -la output-apk/
+          APK_FOUND=$(find android/ -name "*.apk" | head -n 1)
+          if [ -n "$APK_FOUND" ]; then
+            echo "تم العثور على ملف APK: $APK_FOUND"
+            cp "$APK_FOUND" output-apk/MohamedTaleb-Accounting.apk
+            ls -lh output-apk/
           else
-            echo "خطأ: لم يتم العثور على ملف APK!"
+            echo "خطأ: لم يتم العثور على أي ملف APK تم توليده!"
             exit 1
           fi
 
