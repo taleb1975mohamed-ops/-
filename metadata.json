@@ -1,0 +1,8 @@
+{
+  "name": "Remix تطبيق النظام المحاسبي - محمد طالب",
+  "description": "تطبيق متكامل لإدارة المصاريف العائلية والراتب الشهري ومشتريات الخضار واللحوم ومواد التموين والفواتير مع إحصائيات مالية دقيقة.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
