@@ -32,6 +32,7 @@ import { ExpenseSection } from './components/ExpenseSection';
 import { SummarySection } from './components/SummarySection';
 import { ConfirmModal } from './components/ConfirmModal';
 import { AddItemModal } from './components/AddItemModal';
+import { ApkDownloadModal } from './components/ApkDownloadModal';
 import { Toast } from './components/Toast';
 
 const SECTIONS_ORDER: SectionType[] = [
@@ -71,6 +72,8 @@ export default function App() {
     categoryTitle: '',
     targetCategory: 'vegList'
   });
+
+  const [isApkModalOpen, setIsApkModalOpen] = useState(false);
 
   // Persist whenever data updates
   useEffect(() => {
@@ -293,6 +296,7 @@ export default function App() {
         }}
         onImportJSON={handleImportJSON}
         onResetMonth={handleResetMonth}
+        onOpenApkModal={() => setIsApkModalOpen(true)}
         savedIndicator={savedIndicator}
       />
 
@@ -436,6 +440,13 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-between">
           <p>© {new Date().getFullYear()} النظام المحاسبي وإدارة المصاريف - محمد طالب</p>
           <div className="flex items-center gap-4 text-slate-400">
+            <button
+              onClick={() => setIsApkModalOpen(true)}
+              className="text-sky-600 hover:text-sky-800 font-bold hover:underline transition-colors cursor-pointer"
+            >
+              📱 استخراج تطبيق أندرويد (APK)
+            </button>
+            <span>·</span>
             <span>العملة: درهم مغربي (MAD)</span>
             <span>·</span>
             <span>حفظ محلي آمن في المتصفح</span>
@@ -458,6 +469,12 @@ export default function App() {
         categoryTitle={addCatalogModalState.categoryTitle}
         onAdd={handleAddCatalogItem}
         onClose={() => setAddCatalogModalState(prev => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* Android APK Download Guide Modal */}
+      <ApkDownloadModal
+        isOpen={isApkModalOpen}
+        onClose={() => setIsApkModalOpen(false)}
       />
     </div>
   );

@@ -1,0 +1,9 @@
+{
+  "appId": "com.mohamedtaleb.accounting",
+  "appName": "النظام المحاسبي - محمد طالب",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}

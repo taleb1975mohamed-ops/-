@@ -1,0 +1,19 @@
+{
+  "name": "النظام المحاسبي - محمد طالب",
+  "short_name": "المحاسبي",
+  "description": "تطبيق متكامل لإدارة المصاريف العائلية والراتب ومشتريات الخضار واللحوم والفواتير",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0284c7",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

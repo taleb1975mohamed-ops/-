@@ -8,7 +8,8 @@ import {
   RotateCcw, 
   FileSpreadsheet,
   Save,
-  Check
+  Check,
+  Smartphone
 } from 'lucide-react';
 import { formatCurrency } from '../utils/storage';
 
@@ -21,6 +22,7 @@ interface HeaderProps {
   onExportJSON: () => void;
   onImportJSON: (data: string) => void;
   onResetMonth: () => void;
+  onOpenApkModal: () => void;
   savedIndicator: boolean;
 }
 
@@ -33,6 +35,7 @@ export const Header: React.FC<HeaderProps> = ({
   onExportJSON,
   onImportJSON,
   onResetMonth,
+  onOpenApkModal,
   savedIndicator
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -185,6 +188,15 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">شهر جديد</span>
+          </button>
+
+          <button
+            onClick={onOpenApkModal}
+            title="استخراج وتحميل تطبيق أندرويد (APK)"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white shadow-xs hover:shadow-sky-500/20 active:scale-95 transition-all"
+          >
+            <Smartphone className="w-4 h-4 text-sky-200" />
+            <span>تطبيق أندرويد (APK)</span>
           </button>
         </div>
 

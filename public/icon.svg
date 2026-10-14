@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="50%" stop-color="#0369a1" />
+      <stop offset="100%" stop-color="#075985" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#0369a1" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  
+  <!-- App Icon Background -->
+  <rect width="512" height="512" rx="128" fill="url(#grad)" />
+  
+  <!-- Inner Card Effect -->
+  <rect x="56" y="56" width="400" height="400" rx="96" fill="none" stroke="rgba(255, 255, 255, 0.2)" stroke-width="4" />
+  
+  <!-- Wallet / Financial Symbol -->
+  <g transform="translate(136, 110)" filter="url(#shadow)">
+    <!-- Main Card Body -->
+    <rect x="0" y="50" width="240" height="170" rx="24" fill="#ffffff" />
+    <path d="M 0 90 L 240 90" stroke="#e2e8f0" stroke-width="4" />
+    <!-- Wallet Flap -->
+    <path d="M 160 105 H 240 V 165 H 160 C 145 165 145 105 160 105 Z" fill="#0284c7" />
+    <!-- Gold Coin Accent -->
+    <circle cx="175" cy="135" r="10" fill="#facc15" stroke="#ca8a04" stroke-width="2" />
+  </g>
+  
+  <!-- Arabic Monogram text 'م.ط' -->
+  <text x="256" y="380" font-family="'Tajawal', 'Segoe UI', Arial, sans-serif" font-size="76" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="4">
+    م . ط
+  </text>
+  <text x="256" y="425" font-family="'Tajawal', 'Segoe UI', Arial, sans-serif" font-size="24" font-weight="700" fill="rgba(255, 255, 255, 0.85)" text-anchor="middle">
+    النظام المحاسبي
+  </text>
+</svg>
