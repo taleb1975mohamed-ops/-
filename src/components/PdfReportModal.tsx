@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { 
   FileText, 
   Download, 
@@ -13,13 +13,15 @@ import {
   Receipt, 
   PieChart, 
   CheckCircle2, 
-  AlertCircle,
-  FileCode,
-  ShieldCheck,
-  Sparkles,
-  Loader2,
-  Check,
-  ExternalLink
+  AlertCircle, 
+  FileCode, 
+  ShieldCheck, 
+  Sparkles, 
+  Loader2, 
+  Check, 
+  ExternalLink,
+  Share2,
+  Smartphone
 } from 'lucide-react';
 import { AccountingData } from '../types';
 import { formatCurrency, formatNumber } from '../utils/storage';
@@ -36,7 +38,29 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
   const reportRef = useRef<HTMLDivElement>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+
+  // Pre-generate PDF blob in background on modal open so all links are immediately ready
+  useEffect(() => {
+    if (!isOpen) return;
+    let isMounted = true;
+    const preparePdf = async () => {
+      try {
+        const result = await generateAndDownloadPdf(data, 'MohamedTaleb-Accounting-Report.pdf');
+        if (isMounted && result) {
+          setPdfBlob(result.blob);
+          setPdfBlobUrl(result.blobUrl);
+        }
+      } catch (err) {
+        console.error('PDF background prep error:', err);
+      }
+    };
+    preparePdf();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, data]);
 
   if (!isOpen) return null;
 
@@ -64,6 +88,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
     try {
       const result = await generateAndDownloadPdf(data, filename);
       if (result && result.blobUrl) {
+        setPdfBlob(result.blob);
         setPdfBlobUrl(result.blobUrl);
       }
       setDownloadSuccess(true);
@@ -81,6 +106,38 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
       }
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  const handleShareMobile = async () => {
+    let targetBlob = pdfBlob;
+    if (!targetBlob) {
+      setIsDownloading(true);
+      try {
+        const result = await generateAndDownloadPdf(data, 'MohamedTaleb-Accounting-Report.pdf');
+        targetBlob = result.blob;
+        setPdfBlob(result.blob);
+        setPdfBlobUrl(result.blobUrl);
+      } finally {
+        setIsDownloading(false);
+      }
+    }
+
+    if (!targetBlob) return;
+
+    try {
+      const file = new File([targetBlob], 'MohamedTaleb-Accounting-Report.pdf', { type: 'application/pdf' });
+      if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'تقرير المحاسبة - محمد طالب',
+          text: 'كشف حساب النظام المحاسبي وإدارة المصاريف - محمد طالب'
+        });
+      } else if (pdfBlobUrl) {
+        window.open(pdfBlobUrl, '_blank');
+      }
+    } catch (err) {
+      console.error('Mobile share failed:', err);
     }
   };
 
