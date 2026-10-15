@@ -10,7 +10,8 @@
     "cap:sync": "cap sync android",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "postinstall": "node scripts/patch-html2canvas.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",

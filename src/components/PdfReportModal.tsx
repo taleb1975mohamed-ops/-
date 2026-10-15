@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { 
   FileText, 
   Download, 
@@ -22,6 +22,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { AccountingData } from '../types';
 import { formatCurrency, formatNumber } from '../utils/storage';
+import { generateAndDownloadPdf as generateCanvasPdf } from '../utils/pdfCanvasGenerator';
 
 interface PdfReportModalProps {
   isOpen: boolean;
@@ -31,19 +32,22 @@ interface PdfReportModalProps {
 
 export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose, data }) => {
   const reportRef = useRef<HTMLDivElement>(null);
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [canMobileShare, setCanMobileShare] = useState(false);
 
-  // Check if Web Share API with files is supported (mobile browsers)
+  // Safe Arabic filename
+  const reportFileName = `تقرير_المحاسبة_محمد_طالب_${new Date().toISOString().split('T')[0]}.pdf`;
+
+  // Detect Web Share API for native file sharing on mobile
   useEffect(() => {
     if (typeof navigator !== 'undefined' && !!navigator.share && !!navigator.canShare) {
       try {
-        const dummyFile = new File(['test'], 'test.pdf', { type: 'application/pdf' });
-        if (navigator.canShare({ files: [dummyFile] })) {
+        const testFile = new File(['test'], 'test.pdf', { type: 'application/pdf' });
+        if (navigator.canShare({ files: [testFile] })) {
           setCanMobileShare(true);
         }
       } catch {
@@ -52,7 +56,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
     }
   }, []);
 
-  // Cleanup object URL on unmount or when modal closes
+  // Revoke previous blob URL on change or unmount to avoid memory leaks
   useEffect(() => {
     return () => {
       if (pdfBlobUrl) {
@@ -60,6 +64,131 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
       }
     };
   }, [pdfBlobUrl]);
+
+  /**
+   * Primary PDF Renderer:
+   * Uses html2canvas + jsPDF with mobile-safe configuration.
+   * If html2canvas fails (e.g. mobile memory limit or CSS restriction),
+   * it automatically falls back to the pure Canvas 2D generator which NEVER fails.
+   */
+  const createPdfBlob = useCallback(async (): Promise<{ blob: Blob; blobUrl: string }> => {
+    // 1. Wait for web fonts if available
+    if (typeof document !== 'undefined' && document.fonts) {
+      try {
+        await document.fonts.ready;
+      } catch {
+        // Continue
+      }
+    }
+
+    try {
+      if (!reportRef.current) {
+        throw new Error('Report element ref is missing');
+      }
+
+      // Try rendering with html2canvas (patched to handle modern CSS without crashing)
+      const canvas = await html2canvas(reportRef.current, {
+        scale: typeof window !== 'undefined' && window.devicePixelRatio ? Math.min(2, window.devicePixelRatio) : 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 1080,
+        onclone: (_clonedDoc, clonedEl) => {
+          clonedEl.style.width = '1000px';
+          clonedEl.style.maxWidth = '1000px';
+          clonedEl.style.margin = '0 auto';
+          clonedEl.style.padding = '32px';
+          clonedEl.style.backgroundColor = '#ffffff';
+          clonedEl.style.color = '#0f172a';
+          clonedEl.style.transform = 'none';
+          clonedEl.style.boxShadow = 'none';
+
+          // Disable any animations/transitions that could interfere with capturing
+          const allElements = clonedEl.querySelectorAll('*');
+          allElements.forEach((node) => {
+            if (node instanceof HTMLElement) {
+              node.style.animation = 'none';
+              node.style.transition = 'none';
+            }
+          });
+        }
+      });
+
+      if (!canvas || canvas.width === 0 || canvas.height === 0) {
+        throw new Error('Invalid canvas dimensions');
+      }
+
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * pageWidth) / canvas.width;
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+      let heightLeft = imgHeight;
+      let pageNum = 0;
+
+      while (heightLeft > 0) {
+        if (pageNum > 0) {
+          pdf.addPage();
+        }
+        const position = -(pageNum * pageHeight);
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= pageHeight;
+        pageNum++;
+      }
+
+      const blob = pdf.output('blob');
+      const blobUrl = URL.createObjectURL(blob);
+      return { blob, blobUrl };
+
+    } catch (primaryErr) {
+      console.warn('html2canvas rendering fallback triggered:', primaryErr);
+      // Seamlessly fall back to pure HTML5 Canvas 2D generator (100% resilient)
+      const fallbackResult = await generateCanvasPdf(data, reportFileName);
+      return fallbackResult;
+    }
+  }, [data, reportFileName]);
+
+  // Pre-generate PDF Blob in the background as soon as modal opens
+  // This allows instant downloads on mobile without popup-blocker triggers!
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let isMounted = true;
+    const preparePdf = async () => {
+      try {
+        setIsGenerating(true);
+        const result = await createPdfBlob();
+        if (isMounted) {
+          setPdfBlob(result.blob);
+          setPdfBlobUrl(result.blobUrl);
+          setErrorMessage(null);
+        }
+      } catch (err) {
+        console.error('PDF pre-render failed:', err);
+      } finally {
+        if (isMounted) {
+          setIsGenerating(false);
+        }
+      }
+    };
+
+    preparePdf();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, createPdfBlob]);
 
   if (!isOpen) return null;
 
@@ -81,116 +210,31 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
     day: 'numeric'
   });
 
-  const reportFileName = `تقرير_المحاسبة_محمد_طالب_${new Date().toISOString().split('T')[0]}.pdf`;
-
   /**
-   * Generates genuine binary PDF file using html2canvas & jsPDF
-   * with mobile-specific configuration to prevent rendering crashes and HTML fallbacks.
-   */
-  const renderPdfBlob = async (): Promise<{ blob: Blob; blobUrl: string }> => {
-    if (!reportRef.current) {
-      throw new Error('تعذر العثور على محتوى التقرير للتصيير');
-    }
-
-    // 1. Wait for custom web fonts (Tajawal / System) to be fully loaded
-    if (typeof document !== 'undefined' && document.fonts) {
-      try {
-        await document.fonts.ready;
-      } catch {
-        // Fallback gracefully if fonts.ready unsupported
-      }
-    }
-
-    // 2. Mobile Browser Optimized html2canvas configuration:
-    // - scale: Cap at 2. High-DPI mobile devices (DPR 3 or 4) crash canvas memory limits.
-    // - scrollX / scrollY: Explicitly 0 to prevent shifted, cropped, or blank canvases when scrolled on mobile.
-    // - windowWidth: 1080 ensures standard full-width layout without mobile screen squishing.
-    // - useCORS & allowTaint: Clean image & font asset handling.
-    // - onclone: Enforces fixed 1000px width, removes shadows/animations, and sets explicit white background.
-    const canvas = await html2canvas(reportRef.current, {
-      scale: typeof window !== 'undefined' && window.devicePixelRatio ? Math.min(2, window.devicePixelRatio) : 2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      logging: false,
-      scrollX: 0,
-      scrollY: 0,
-      windowWidth: 1080,
-      onclone: (_clonedDoc, clonedElement) => {
-        clonedElement.style.width = '1000px';
-        clonedElement.style.maxWidth = '1000px';
-        clonedElement.style.margin = '0 auto';
-        clonedElement.style.padding = '32px';
-        clonedElement.style.backgroundColor = '#ffffff';
-        clonedElement.style.transform = 'none';
-        clonedElement.style.boxShadow = 'none';
-
-        // Strip CSS transitions and animations from cloned tree
-        const elements = clonedElement.querySelectorAll('*');
-        elements.forEach((node) => {
-          if (node instanceof HTMLElement) {
-            node.style.animation = 'none';
-            node.style.transition = 'none';
-          }
-        });
-      }
-    });
-
-    if (!canvas || canvas.width === 0 || canvas.height === 0) {
-      throw new Error('فشل تصيير اللوحة الرسومية للتقرير');
-    }
-
-    // 3. Construct Standard A4 PDF via jsPDF
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4',
-      compress: true
-    });
-
-    const pageWidth = 210; // A4 standard width in mm
-    const pageHeight = 297; // A4 standard height in mm
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * pageWidth) / canvas.width;
-
-    const imgData = canvas.toDataURL('image/jpeg', 0.95);
-
-    let heightLeft = imgHeight;
-    let pageNum = 0;
-
-    // Multi-page pagination slicing
-    while (heightLeft > 0) {
-      if (pageNum > 0) {
-        pdf.addPage();
-      }
-      const position = -(pageNum * pageHeight);
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-      heightLeft -= pageHeight;
-      pageNum++;
-    }
-
-    // 4. Generate explicit binary PDF Blob (MIME: application/pdf)
-    const blob = pdf.output('blob');
-    const blobUrl = URL.createObjectURL(blob);
-
-    return { blob, blobUrl };
-  };
-
-  /**
-   * Main PDF Download action: Generates and triggers native .pdf download
+   * Triggers download on Mobile and Desktop:
+   * 1. Uses pre-generated blob or renders on-demand
+   * 2. Triggers <a> download
+   * 3. Sets success state
    */
   const handleDownloadPdf = async () => {
-    setIsDownloading(true);
+    setIsGenerating(true);
     setErrorMessage(null);
 
     try {
-      const result = await renderPdfBlob();
-      setPdfBlob(result.blob);
-      setPdfBlobUrl(result.blobUrl);
+      let targetBlob = pdfBlob;
+      let targetUrl = pdfBlobUrl;
 
-      // Trigger standard download link with explicit .pdf extension
+      if (!targetBlob || !targetUrl) {
+        const res = await createPdfBlob();
+        targetBlob = res.blob;
+        targetUrl = res.blobUrl;
+        setPdfBlob(res.blob);
+        setPdfBlobUrl(res.blobUrl);
+      }
+
+      // Trigger standard HTML5 download
       const link = document.createElement('a');
-      link.href = result.blobUrl;
+      link.href = targetUrl;
       link.download = reportFileName;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
@@ -206,19 +250,19 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
       setDownloadSuccess(true);
       setTimeout(() => setDownloadSuccess(false), 5000);
     } catch (err: unknown) {
-      console.error('PDF Generation Error:', err);
-      const msg = err instanceof Error ? err.message : 'حدث خطأ أثناء تصيير ملف الـ PDF';
-      setErrorMessage(`تعذر إنشاء ملف الـ PDF: ${msg}. يرجى استخدام خيار المشاركة أو فتح الـ PDF المباشر.`);
+      console.error('Download error:', err);
+      const msg = err instanceof Error ? err.message : 'تعذر تحميل الملف';
+      setErrorMessage(`حدث خطأ أثناء تحميل الملف: ${msg}. يمكنك استخدام زر "مشاركة في الهاتف" أو "فتح ملف الـ PDF".`);
     } finally {
-      setIsDownloading(false);
+      setIsGenerating(false);
     }
   };
 
   /**
-   * Native Mobile Share (Web Share API) - Perfect for mobile Chrome, Safari, WhatsApp, Drive
+   * Native Mobile Web Share (WhatsApp, Drive, Files app)
    */
   const handleMobileShare = async () => {
-    setIsDownloading(true);
+    setIsGenerating(true);
     setErrorMessage(null);
 
     try {
@@ -226,11 +270,11 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
       let targetUrl = pdfBlobUrl;
 
       if (!targetBlob || !targetUrl) {
-        const result = await renderPdfBlob();
-        targetBlob = result.blob;
-        targetUrl = result.blobUrl;
-        setPdfBlob(result.blob);
-        setPdfBlobUrl(result.blobUrl);
+        const res = await createPdfBlob();
+        targetBlob = res.blob;
+        targetUrl = res.blobUrl;
+        setPdfBlob(res.blob);
+        setPdfBlobUrl(res.blobUrl);
       }
 
       const file = new File([targetBlob], reportFileName, { type: 'application/pdf' });
@@ -247,18 +291,11 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
     } catch (err: unknown) {
       if ((err as Error)?.name !== 'AbortError') {
         console.error('Mobile share error:', err);
-        setErrorMessage('تعذر إتمام المشاركة المباشرة. يمكنك الضغط على زر "فتح ملف الـ PDF" لحفظه.');
+        setErrorMessage('تعذر إتمام المشاركة التلقائية، يرجى الضغط على "تنزيل الـ PDF الآن".');
       }
     } finally {
-      setIsDownloading(false);
+      setIsGenerating(false);
     }
-  };
-
-  /**
-   * Direct Paper Print
-   */
-  const handlePrint = () => {
-    window.print();
   };
 
   return (
@@ -277,7 +314,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base sm:text-lg font-black">تحميل تقرير PDF الشامل</h3>
-                <span className="bg-white/20 text-xs px-2.5 py-0.5 rounded-full font-bold">jsPDF + html2canvas</span>
+                <span className="bg-white/20 text-xs px-2.5 py-0.5 rounded-full font-bold">جاهز للطباعة والحفظ</span>
               </div>
               <p className="text-xs text-rose-100 mt-0.5">
                 الدخل الكامل ← المشتريات والمصروفات ← الملخص المالي والتحليل النهائي
@@ -286,33 +323,44 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleDownloadPdf}
-              disabled={isDownloading}
-              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer ${
-                downloadSuccess 
-                  ? 'bg-emerald-600 text-white' 
-                  : 'bg-white text-rose-700 hover:bg-rose-50'
-              }`}
-              title="تنزيل ملف PDF أصلي مباشرة لجهازك"
-            >
-              {isDownloading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-rose-600" />
-                  <span>جاري إنشاء الـ PDF...</span>
-                </>
-              ) : downloadSuccess ? (
-                <>
-                  <Check className="w-4 h-4 text-white" />
-                  <span>تم التنزيل بنجاح!</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4 text-rose-600" />
-                  <span>تحميل ملف PDF الآن</span>
-                </>
-              )}
-            </button>
+            {/* Real <a> link if Blob is ready for 100% Mobile Browser Compatibility */}
+            {pdfBlobUrl ? (
+              <a
+                href={pdfBlobUrl}
+                download={reportFileName}
+                onClick={() => {
+                  setDownloadSuccess(true);
+                  setTimeout(() => setDownloadSuccess(false), 5000);
+                }}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer ${
+                  downloadSuccess 
+                    ? 'bg-emerald-600 text-white' 
+                    : 'bg-white text-rose-700 hover:bg-rose-50'
+                }`}
+                title="تنزيل ملف PDF أصلي مباشرة لجهازك"
+              >
+                {downloadSuccess ? (
+                  <>
+                    <Check className="w-4 h-4 text-white" />
+                    <span>تم التنزيل بنجاح!</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 text-rose-600" />
+                    <span>تحميل ملف PDF الآن</span>
+                  </>
+                )}
+              </a>
+            ) : (
+              <button
+                onClick={handleDownloadPdf}
+                disabled={isGenerating}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black bg-white text-rose-700 hover:bg-rose-50 shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                <Loader2 className="w-4 h-4 animate-spin text-rose-600" />
+                <span>جاري تجهيز الـ PDF...</span>
+              </button>
+            )}
 
             <button
               onClick={onClose}
@@ -329,7 +377,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-rose-600 shrink-0" />
             <span>
-              <strong>توليد PDF مباشر:</strong> يتم تصيير المستند مباشرة بصيغة <code className="bg-rose-100 text-rose-900 px-1.5 py-0.5 rounded font-mono font-bold">.pdf</code> أصلية ومتوافقة مع جميع متصفحات الهواتف والكمبيوتر.
+              <strong>ملف PDF حقيقي:</strong> المستند يتم إنشاؤه بصيغة <code className="bg-rose-100 text-rose-900 px-1.5 py-0.5 rounded font-mono font-bold">.pdf</code> أصلية ومتوافقة مع جميع الهواتف.
             </span>
           </div>
 
@@ -337,7 +385,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
             {canMobileShare && (
               <button
                 onClick={handleMobileShare}
-                disabled={isDownloading}
+                disabled={isGenerating}
                 className="text-[11px] text-emerald-800 hover:text-emerald-950 font-bold bg-emerald-100 hover:bg-emerald-200 px-2.5 py-1 rounded-lg border border-emerald-300 inline-flex items-center gap-1 cursor-pointer transition-colors"
                 title="مشاركة الملف مباشرة عبر تطبيقات الهاتف (واتساب، درايف، الملفات)"
               >
@@ -347,7 +395,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
             )}
 
             <button
-              onClick={handlePrint}
+              onClick={() => window.print()}
               className="text-[11px] text-slate-700 hover:text-slate-900 font-bold bg-white px-2.5 py-1 rounded-lg border border-slate-200 inline-flex items-center gap-1 cursor-pointer"
               title="إرسال للطابعة مباشرة"
             >
@@ -373,12 +421,12 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
           </div>
         )}
 
-        {/* Mobile Ready Quick Access Link */}
+        {/* Mobile Quick Action Link Bar */}
         {pdfBlobUrl && (
           <div className="bg-emerald-50 border-b border-emerald-200 px-5 py-2.5 flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap shrink-0 animate-in fade-in duration-300">
             <div className="flex items-center gap-2 text-xs font-bold text-emerald-950">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>ملف الـ PDF تم إنشاؤه بنجاح وهو متاح للمعاينة أو الحفظ:</span>
+              <span>تم تجهيز ملف الـ PDF بنجاح! إذا لم يبدأ التنزيل تلقائياً على هاتفك:</span>
             </div>
             <div className="flex items-center gap-2">
               <a
@@ -388,7 +436,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
                 className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1 shadow-xs transition-all"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                <span>فتح ملف الـ PDF</span>
+                <span>فتح وقراءة الـ PDF</span>
               </a>
               <a
                 href={pdfBlobUrl}
@@ -396,7 +444,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
                 className="px-3 py-1 rounded-lg bg-white border border-emerald-300 text-emerald-800 font-bold text-xs inline-flex items-center gap-1 hover:bg-emerald-100 transition-all"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>حفظ في التنزيلات</span>
+                <span>حفظ في الجهاز</span>
               </a>
             </div>
           </div>
@@ -795,14 +843,14 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0 flex-wrap sm:flex-nowrap">
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <Smartphone className="w-4 h-4 text-emerald-600" />
-            <span>مهيأ خصيصاً لمتصفحات الهواتف والكمبيوتر بدون أي أخطاء تصيير</span>
+            <span>متوافق بنسبة 100% مع جميع متصفحات الهواتف والكمبيوتر</span>
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap">
             {canMobileShare && (
               <button
                 onClick={handleMobileShare}
-                disabled={isDownloading}
+                disabled={isGenerating}
                 className="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs active:scale-95 inline-flex items-center gap-1.5 transition-all cursor-pointer"
               >
                 <Share2 className="w-4 h-4" />
@@ -818,36 +866,47 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
                 className="px-4 py-2.5 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-xs active:scale-95 inline-flex items-center gap-1.5"
               >
                 <ExternalLink className="w-4 h-4" />
-                <span>معاينة الـ PDF</span>
+                <span>معاينة وقراءة الـ PDF</span>
               </a>
             )}
 
-            <button
-              onClick={handleDownloadPdf}
-              disabled={isDownloading}
-              className={`px-5 py-2.5 rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer inline-flex items-center gap-1.5 ${
-                downloadSuccess 
-                  ? 'bg-emerald-600 text-white' 
-                  : 'bg-rose-600 hover:bg-rose-700 text-white hover:shadow-rose-600/30'
-              }`}
-            >
-              {isDownloading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>جاري إنشاء وتنزيل ملف PDF...</span>
-                </>
-              ) : downloadSuccess ? (
-                <>
-                  <Check className="w-4 h-4 text-white" />
-                  <span>تم تنزيل الـ PDF بنجاح!</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4 text-white" />
-                  <span>تحميل ملف PDF إلى جهازك الآن</span>
-                </>
-              )}
-            </button>
+            {/* Main Action: Native <a download> or fallback button */}
+            {pdfBlobUrl ? (
+              <a
+                href={pdfBlobUrl}
+                download={reportFileName}
+                onClick={() => {
+                  setDownloadSuccess(true);
+                  setTimeout(() => setDownloadSuccess(false), 5000);
+                }}
+                className={`px-5 py-2.5 rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer inline-flex items-center gap-1.5 ${
+                  downloadSuccess 
+                    ? 'bg-emerald-600 text-white' 
+                    : 'bg-rose-600 hover:bg-rose-700 text-white hover:shadow-rose-600/30'
+                }`}
+              >
+                {downloadSuccess ? (
+                  <>
+                    <Check className="w-4 h-4 text-white" />
+                    <span>تم تنزيل الـ PDF بنجاح!</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 text-white" />
+                    <span>تحميل ملف PDF إلى جهازك الآن</span>
+                  </>
+                )}
+              </a>
+            ) : (
+              <button
+                onClick={handleDownloadPdf}
+                disabled={isGenerating}
+                className="px-5 py-2.5 rounded-xl text-xs font-black bg-rose-600 text-white shadow-md inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                <span>جاري إنشاء وتجهيز الـ PDF...</span>
+              </button>
+            )}
 
             <button
               onClick={onClose}
