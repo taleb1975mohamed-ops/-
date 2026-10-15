@@ -1,5 +1,7 @@
 import { AccountingData } from '../types';
 import { formatCurrency, formatNumber } from './storage';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 export function generateReportHtml(data: AccountingData): string {
   const totalIncome = data.incomes.reduce((sum, item) => sum + (item.amount || 0), 0);
@@ -557,3 +559,43 @@ export function downloadReportHtml(data: AccountingData): void {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/**
+ * Renders any HTML element directly to a downloadable binary .pdf file using html2canvas & jsPDF.
+ * Works seamlessly across all desktop & mobile browsers, including inside iframes!
+ */
+export async function downloadElementAsPdf(
+  element: HTMLElement,
+  filename: string = `تقرير_المحاسبة_محمد_طالب_${new Date().toISOString().split('T')[0]}.pdf`
+): Promise<void> {
+  const canvas = await html2canvas(element, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+    logging: false,
+    windowWidth: 1024
+  });
+
+  const imgData = canvas.toDataURL('image/jpeg', 0.95);
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const imgWidth = pageWidth;
+  const imgHeight = (canvas.height * pageWidth) / canvas.width;
+
+  let heightLeft = imgHeight;
+  let pageNum = 0;
+
+  while (heightLeft > 0) {
+    if (pageNum > 0) {
+      pdf.addPage();
+    }
+    const position = -(pageNum * pageHeight);
+    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+    heightLeft -= pageHeight;
+    pageNum++;
+  }
+
+  pdf.save(filename);
+}
+

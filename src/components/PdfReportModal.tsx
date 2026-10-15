@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   FileText, 
   Download, 
@@ -16,11 +16,14 @@ import {
   AlertCircle,
   FileCode,
   ShieldCheck,
-  Sparkles
+  Sparkles,
+  Loader2,
+  Check
 } from 'lucide-react';
 import { AccountingData } from '../types';
 import { formatCurrency, formatNumber } from '../utils/storage';
-import { printOrDownloadPdf, downloadReportHtml } from '../utils/pdfGenerator';
+import { printOrDownloadPdf, downloadReportHtml, downloadElementAsPdf } from '../utils/pdfGenerator';
+import { generateAndDownloadPdf } from '../utils/pdfCanvasGenerator';
 
 interface PdfReportModalProps {
   isOpen: boolean;
@@ -29,6 +32,10 @@ interface PdfReportModalProps {
 }
 
 export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose, data }) => {
+  const reportRef = useRef<HTMLDivElement>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
+
   if (!isOpen) return null;
 
   // Calculations
@@ -48,6 +55,30 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
     month: 'long',
     day: 'numeric'
   });
+
+  const handleDownloadDirectPdf = async () => {
+    setIsDownloading(true);
+    const filename = `تقرير_المحاسبة_محمد_طالب_${new Date().toISOString().split('T')[0]}.pdf`;
+    try {
+      await generateAndDownloadPdf(data, filename);
+      setDownloadSuccess(true);
+      setTimeout(() => setDownloadSuccess(false), 4000);
+    } catch (err) {
+      console.error('Canvas PDF error, attempting element fallback:', err);
+      try {
+        if (reportRef.current) {
+          await downloadElementAsPdf(reportRef.current, filename);
+          setDownloadSuccess(true);
+          setTimeout(() => setDownloadSuccess(false), 4000);
+        }
+      } catch (innerErr) {
+        console.error('All PDF generation methods failed:', innerErr);
+        printOrDownloadPdf(data);
+      }
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const handlePrintPdf = () => {
     printOrDownloadPdf(data);
@@ -83,12 +114,31 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
 
           <div className="flex items-center gap-2">
             <button
-              onClick={handlePrintPdf}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black bg-white text-rose-700 hover:bg-rose-50 shadow-md transition-all active:scale-95 cursor-pointer"
-              title="فتح نافذة الحفظ بتنسيق PDF"
+              onClick={handleDownloadDirectPdf}
+              disabled={isDownloading}
+              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer ${
+                downloadSuccess 
+                  ? 'bg-emerald-600 text-white' 
+                  : 'bg-white text-rose-700 hover:bg-rose-50'
+              }`}
+              title="تنزيل ملف PDF مباشرة لجهازك"
             >
-              <Download className="w-4 h-4 text-rose-600" />
-              <span>تحميل بتنسيق PDF</span>
+              {isDownloading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-rose-600" />
+                  <span>جاري إنشاء الـ PDF...</span>
+                </>
+              ) : downloadSuccess ? (
+                <>
+                  <Check className="w-4 h-4 text-white" />
+                  <span>تم التنزيل بنجاح!</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 text-rose-600" />
+                  <span>تحميل ملف PDF الآن</span>
+                </>
+              )}
             </button>
 
             <button
@@ -106,22 +156,36 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-rose-600 shrink-0" />
             <span>
-              <strong>طريقة الحفظ:</strong> عند الضغط على الزر أعلاه، اختر في خانة الوجهة (Destination) خيار <strong>"حفظ بتنسيق PDF" (Save as PDF)</strong> لحفظ الملف بجودة عالية على هاتفك أو كمبيوترك.
+              <strong>تحميل فوري مباشر:</strong> اضغط على الزر الأحمر أو الأبيض وسيبدأ فوراً تحميل ملف <code className="bg-rose-100 px-1.5 py-0.5 rounded font-mono font-bold">.pdf</code> كامل وعالي الجودة إلى مجلد التنزيلات على هاتفك أو كمبيوترك.
             </span>
           </div>
 
-          <button
-            onClick={handleDownloadHtml}
-            className="text-[11px] text-rose-700 hover:text-rose-900 font-bold underline shrink-0 inline-flex items-center gap-1 cursor-pointer"
-          >
-            <FileCode className="w-3.5 h-3.5" />
-            <span>أو تنزيل نسخة HTML</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handlePrintPdf}
+              className="text-[11px] text-slate-700 hover:text-slate-900 font-bold bg-white px-2.5 py-1 rounded-lg border border-slate-200 inline-flex items-center gap-1 cursor-pointer"
+              title="إرسال للطابعة مباشرة"
+            >
+              <Printer className="w-3.5 h-3.5 text-slate-500" />
+              <span>طباعة ورقية</span>
+            </button>
+
+            <button
+              onClick={handleDownloadHtml}
+              className="text-[11px] text-rose-700 hover:text-rose-900 font-bold underline inline-flex items-center gap-1 cursor-pointer"
+            >
+              <FileCode className="w-3.5 h-3.5" />
+              <span>نسخة HTML</span>
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Printable Sheet Preview */}
         <div className="p-4 sm:p-6 overflow-y-auto bg-slate-100 space-y-6">
-          <div className="max-w-3xl mx-auto bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 text-slate-800 space-y-6 font-sans">
+          <div 
+            ref={reportRef}
+            className="max-w-3xl mx-auto bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 text-slate-800 space-y-6 font-sans"
+          >
             
             {/* Report Header */}
             <div className="border-2 border-sky-600 bg-gradient-to-l from-sky-50 via-sky-50/50 to-white rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4">
@@ -506,11 +570,30 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
 
           <div className="flex items-center gap-2.5">
             <button
-              onClick={handlePrintPdf}
-              className="px-5 py-2.5 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-700 text-white shadow-sm hover:shadow-rose-600/30 transition-all active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+              onClick={handleDownloadDirectPdf}
+              disabled={isDownloading}
+              className={`px-5 py-2.5 rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer inline-flex items-center gap-1.5 ${
+                downloadSuccess 
+                  ? 'bg-emerald-600 text-white' 
+                  : 'bg-rose-600 hover:bg-rose-700 text-white hover:shadow-rose-600/30'
+              }`}
             >
-              <Download className="w-4 h-4" />
-              <span>تحميل وحفظ التقرير بتنسيق PDF</span>
+              {isDownloading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>جاري إنشاء وتنزيل ملف PDF...</span>
+                </>
+              ) : downloadSuccess ? (
+                <>
+                  <Check className="w-4 h-4 text-white" />
+                  <span>تم تنزيل التقرير بنجاح!</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 text-white" />
+                  <span>تحميل ملف PDF إلى جهازك الآن</span>
+                </>
+              )}
             </button>
 
             <button
