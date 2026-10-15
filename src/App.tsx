@@ -33,6 +33,7 @@ import { SummarySection } from './components/SummarySection';
 import { ConfirmModal } from './components/ConfirmModal';
 import { AddItemModal } from './components/AddItemModal';
 import { ApkDownloadModal } from './components/ApkDownloadModal';
+import { PdfReportModal } from './components/PdfReportModal';
 import { InstallBanner } from './components/InstallBanner';
 import { Toast } from './components/Toast';
 import { usePWAInstall } from './utils/usePWAInstall';
@@ -76,6 +77,7 @@ export default function App() {
   });
 
   const [isApkModalOpen, setIsApkModalOpen] = useState(false);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const { isInstallable, isInstalled, install } = usePWAInstall();
 
   const handleInstallApp = async () => {
@@ -316,6 +318,7 @@ export default function App() {
           exportDataAsJSON(data);
           showToast('تم تحميل نسخة JSON الاحتياطية بنجاح');
         }}
+        onOpenPdfReport={() => setIsPdfModalOpen(true)}
         onImportJSON={handleImportJSON}
         onResetMonth={handleResetMonth}
         onOpenApkModal={() => setIsApkModalOpen(true)}
@@ -454,6 +457,7 @@ export default function App() {
               exportDataAsJSON(data);
               showToast('تم تحميل نسخة JSON الاحتياطية بنجاح');
             }}
+            onOpenPdfReport={() => setIsPdfModalOpen(true)}
           />
         )}
       </main>
@@ -463,6 +467,13 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-between">
           <p>© {new Date().getFullYear()} النظام المحاسبي وإدارة المصاريف - محمد طالب</p>
           <div className="flex items-center gap-4 text-slate-400">
+            <button
+              onClick={() => setIsPdfModalOpen(true)}
+              className="text-rose-700 hover:text-rose-900 font-bold hover:underline transition-colors cursor-pointer inline-flex items-center gap-1"
+            >
+              📄 تحميل تقرير PDF
+            </button>
+            <span>·</span>
             <button
               onClick={handleInstallApp}
               className="text-emerald-700 hover:text-emerald-900 font-bold hover:underline transition-colors cursor-pointer inline-flex items-center gap-1"
@@ -507,6 +518,13 @@ export default function App() {
         onClose={() => setIsApkModalOpen(false)}
         isInstallable={isInstallable}
         onNativeInstall={install}
+      />
+
+      {/* Full PDF Report Modal */}
+      <PdfReportModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        data={data}
       />
     </div>
   );

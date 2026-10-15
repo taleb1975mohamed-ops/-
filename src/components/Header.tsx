@@ -9,7 +9,8 @@ import {
   FileSpreadsheet,
   Save,
   Check,
-  Smartphone
+  Smartphone,
+  FileText
 } from 'lucide-react';
 import { formatCurrency } from '../utils/storage';
 
@@ -20,6 +21,7 @@ interface HeaderProps {
   onSave: () => void;
   onExportCSV: () => void;
   onExportJSON: () => void;
+  onOpenPdfReport: () => void;
   onImportJSON: (data: string) => void;
   onResetMonth: () => void;
   onOpenApkModal: () => void;
@@ -34,6 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSave,
   onExportCSV,
   onExportJSON,
+  onOpenPdfReport,
   onImportJSON,
   onResetMonth,
   onOpenApkModal,
@@ -156,6 +159,15 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
             <span className="hidden sm:inline">إكسل</span> CSV
+          </button>
+
+          <button
+            onClick={onOpenPdfReport}
+            title="تحميل كشف حساب شامل بتنسيق PDF"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 transition-colors shadow-2xs cursor-pointer"
+          >
+            <FileText className="w-4 h-4 text-rose-600" />
+            <span>تحميل PDF</span>
           </button>
 
           <button

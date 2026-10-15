@@ -14,7 +14,8 @@ import {
   CheckCircle2,
   Printer,
   Sliders,
-  Sparkles
+  Sparkles,
+  FileText
 } from 'lucide-react';
 import { formatCurrency, formatNumber } from '../utils/storage';
 import { AccountingData } from '../types';
@@ -24,13 +25,15 @@ interface SummarySectionProps {
   onUpdateBudgetLimit: (limit: number | undefined) => void;
   onExportCSV: () => void;
   onExportJSON: () => void;
+  onOpenPdfReport: () => void;
 }
 
 export const SummarySection: React.FC<SummarySectionProps> = ({
   data,
   onUpdateBudgetLimit,
   onExportCSV,
-  onExportJSON
+  onExportJSON,
+  onOpenPdfReport
 }) => {
   const [isEditingBudget, setIsEditingBudget] = useState(false);
   const [budgetInput, setBudgetInput] = useState(data.monthlyBudgetLimit ? data.monthlyBudgetLimit.toString() : '');
@@ -137,13 +140,13 @@ export const SummarySection: React.FC<SummarySectionProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 print:hidden">
+        <div className="flex items-center gap-2 print:hidden flex-wrap">
           <button
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
+            onClick={onOpenPdfReport}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-700 text-white shadow-xs hover:shadow-rose-600/30 transition-all active:scale-95 cursor-pointer"
           >
-            <Printer className="w-4 h-4 text-slate-600" />
-            <span>طباعة التقرير</span>
+            <FileText className="w-4 h-4 text-white" />
+            <span>تحميل تقرير PDF شامل</span>
           </button>
           <button
             onClick={onExportCSV}
