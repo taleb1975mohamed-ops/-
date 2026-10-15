@@ -18,7 +18,8 @@ import {
   ShieldCheck,
   Sparkles,
   Loader2,
-  Check
+  Check,
+  ExternalLink
 } from 'lucide-react';
 import { AccountingData } from '../types';
 import { formatCurrency, formatNumber } from '../utils/storage';
@@ -35,6 +36,7 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
   const reportRef = useRef<HTMLDivElement>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -58,18 +60,20 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
 
   const handleDownloadDirectPdf = async () => {
     setIsDownloading(true);
-    const filename = `تقرير_المحاسبة_محمد_طالب_${new Date().toISOString().split('T')[0]}.pdf`;
+    const filename = 'MohamedTaleb-Accounting-Report.pdf';
     try {
-      await generateAndDownloadPdf(data, filename);
+      const result = await generateAndDownloadPdf(data, filename);
+      if (result && result.blobUrl) {
+        setPdfBlobUrl(result.blobUrl);
+      }
       setDownloadSuccess(true);
-      setTimeout(() => setDownloadSuccess(false), 4000);
+      setTimeout(() => setDownloadSuccess(false), 5000);
     } catch (err) {
       console.error('Canvas PDF error, attempting element fallback:', err);
       try {
         if (reportRef.current) {
           await downloadElementAsPdf(reportRef.current, filename);
           setDownloadSuccess(true);
-          setTimeout(() => setDownloadSuccess(false), 4000);
         }
       } catch (innerErr) {
         console.error('All PDF generation methods failed:', innerErr);
@@ -179,6 +183,35 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
             </button>
           </div>
         </div>
+
+        {/* Mobile Direct Action Ready Banner if Blob is Generated */}
+        {pdfBlobUrl && (
+          <div className="bg-emerald-50 border-b border-emerald-200 px-5 py-3 flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap shrink-0 animate-in fade-in duration-300">
+            <div className="flex items-center gap-2 text-xs font-bold text-emerald-950">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>جاهز! إذا لم يبدأ التنزيل تلقائياً على هاتفك، اضغط:</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href={pdfBlobUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs inline-flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>فتح ملف الـ PDF</span>
+              </a>
+              <a
+                href={pdfBlobUrl}
+                download="MohamedTaleb-Accounting-Report.pdf"
+                className="px-3.5 py-1.5 rounded-xl bg-white border border-emerald-300 text-emerald-800 font-bold text-xs inline-flex items-center gap-1.5 hover:bg-emerald-100 transition-all"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>تنزيل الملف</span>
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* Scrollable Printable Sheet Preview */}
         <div className="p-4 sm:p-6 overflow-y-auto bg-slate-100 space-y-6">
@@ -568,7 +601,19 @@ export const PdfReportModal: React.FC<PdfReportModalProps> = ({ isOpen, onClose,
             <span>متوافق مع جميع الهواتف وأجهزة الكمبيوتر</span>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {pdfBlobUrl && (
+              <a
+                href={pdfBlobUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm active:scale-95 inline-flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-4 h-4" />
+                <span>فتح واستعراض الـ PDF</span>
+              </a>
+            )}
+
             <button
               onClick={handleDownloadDirectPdf}
               disabled={isDownloading}

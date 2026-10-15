@@ -10,7 +10,7 @@ import jsPDF from 'jspdf';
 export async function generateAndDownloadPdf(
   data: AccountingData,
   filename: string = `تقرير_المحاسبة_محمد_طالب_${new Date().toISOString().split('T')[0]}.pdf`
-): Promise<void> {
+): Promise<{ blob: Blob; blobUrl: string }> {
   // Ensure custom font Tajawal is loaded
   if (document.fonts) {
     try {
@@ -421,9 +421,14 @@ export async function generateAndDownloadPdf(
   ctx.font = '900 16px "Tajawal", system-ui, sans-serif';
   ctx.fillText('محمد طالب', margin + 18, y + 27);
 
-  // ==================== Export to jsPDF ====================
-  const imgData = canvas.toDataURL('image/jpeg', 0.95);
-  const pdf = new jsPDF('p', 'mm', 'a4');
+  // ==================== Export to jsPDF with Mobile Blob Support ====================
+  const imgData = canvas.toDataURL('image/jpeg', 0.92);
+  const pdf = new jsPDF({
+    orientation: 'p',
+    unit: 'mm',
+    format: 'a4',
+    compress: true
+  });
   const pageWidth = 210;
   const pageHeight = 297;
 
@@ -441,6 +446,27 @@ export async function generateAndDownloadPdf(
     pageNum++;
   }
 
-  // Trigger real .pdf download
-  pdf.save(filename);
+  // Generate binary Blob (Mobile compatible, avoids data: URI block on mobile Chrome)
+  const blob = pdf.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+
+  // Safe filename that Android and iOS file managers accept without .bin renaming
+  const safeFilename = filename.toLowerCase().endsWith('.pdf') 
+    ? filename 
+    : `${filename}.pdf`;
+
+  // Trigger download via link element
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = safeFilename;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  document.body.appendChild(link);
+  link.click();
+
+  setTimeout(() => {
+    document.body.removeChild(link);
+  }, 2000);
+
+  return { blob, blobUrl };
 }
